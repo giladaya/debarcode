@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SlaRle Demo</title>
+    
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css" rel="stylesheet">
+    
+    
+    <style>
+      video {
+        display: none;
+      }
+      canvas { 
+        margin-top: 10px;
+        width: 100%; border: 1px solid #DDD; background: #FAFAFA; cursor: pointer; 
+      }
+      input[type=file] { 
+        display: none; 
+      }
+    </style>
+    
+  </head>
+  
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-xs-10 col-xs-offset-1 col-sm-8 col-sm-offset-2 col-md-6 col-md-offset-3 col-lg-4 col-lg-offset-4">
+        
+          <div class="row">
+            <div class="col-xs-12">
+              <h2>SlaRle.js Demo</h2>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-xs-12">
+              <h3>Result: <span id="result">-</span></h3>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-xs-12">
+              <h4>Time: <span id="time">0</span> s</h4>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-xs-6">
+              <div class="input-group">
+                <span class="input-group-addon">Max. Res</span>
+                <select id="resolution" class="form-control" >
+                  <option value="200">200</option>
+                  <option value="400">400</option>
+                  <option value="600" selected>600</option>
+                  <option value="800">800</option>
+                  <option value="1000">1000</option>
+                </select>
+                <!-- <input id="resolution" type="text" class="form-control" value="640"> -->
+                <span class="input-group-addon">px</span>
+              </div>
+            </div>
+            <div class="col-xs-6">
+              <button id="scan" type="button" class="btn btn-success btn-lg btn-block">Scan</button>
+            </div>
+          </div>
+                    
+          <div class="row">
+            <div class="col-xs-12">
+              <canvas id="image"></canvas>
+              <video>Video tag not supported</video>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+    
+    <script src="https://rawgit.com/jseidelin/exif-js/master/exif.js"></script>
+    <script src="https://rawgit.com/stomita/ios-imagefile-megapixel/master/src/megapix-image.js"></script>
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+
+    <script>
+
+      var video = document.querySelector('video');
+      var constraints = { 
+        video: { 
+          facingMode: ("environment") ,
+          width: 600, 
+          height: 800
+        } 
+      };
+
+      function getBackCamConstraints(devices) {
+        devices = devices.filter(function(d) {
+          return d.kind === 'videoinput';
+        });
+        var back = devices.find(function(d) {
+          return d.label.toLowerCase().indexOf('back') !== -1;
+        }) || (devices.length && devices[devices.length - 1]);
+        var constraints = {video: true}
+        if (back) {
+          constraints.video = {deviceId: back.deviceId};
+          // constraints.video = {mandatory: {deviceId: back.deviceId}};
+        }
+        return constraints;
+      }
+
+      navigator.mediaDevices.enumerateDevices()
+      .then(function(devices) {
+          constraints = getBackCamConstraints(devices);
+          return navigator.mediaDevices.getUserMedia(constraints);
+      })
+      .then(function(mediaStream) {
+        video.srcObject = mediaStream;
+        video.onloadedmetadata = function(e) {
+          video.play();
+          startApp();
+        };
+      })
+      .catch(function(err) { 
+        alert(err.name);
+        console.log(err.name + ": " + err.message); 
+      }); // always check for errors at the end.
+
+      startApp = function() {
+        var raf = null; //requestAnimationFrame handle
+        var startTime;
+        var endTime;
+        var found = false;
+        var tempCanvas = document.getElementById('image');
+        var fileInput = document.getElementById('upload');
+        var SlaRleWorker = new Worker('./SlaRle.js');
+        var $resolution = document.getElementById('resolution');
+
+        function initResult() {
+          $('#time').html("0");
+          $('#result').html("-");
+          // start time measurement
+          startTime = new Date().getTime();
+        }
+
+        function doScan() {
+          var tempCanvasCtx = tempCanvas.getContext("2d");
+          var data = tempCanvasCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+
+          // prepare message
+          var message = {
+            img: data,
+            width: tempCanvas.width,
+            height: tempCanvas.height
+          };
+          
+          console.log('send')
+          SlaRleWorker.postMessage(message);
+          message = null;
+        }
+
+        function draw() {
+          var tempCanvasCtx = tempCanvas.getContext("2d");
+          var dw = tempCanvas.width,
+            dh = tempCanvas.height,
+            sw = video.videoWidth,
+            sh = Math.ceil(dh / dw * sw)
+            sy = Math.floor((video.videoHeight - sh) / 2);
+
+          // tempCanvasCtx.drawImage(video, 0, 0);
+          tempCanvasCtx.drawImage(video, 0, sy, sw, sh, 0, 0, dw, dh);
+
+          // draw red line
+          tempCanvasCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)'
+          tempCanvasCtx.beginPath();
+          tempCanvasCtx.moveTo(dw*0.33, dh*0.5);
+          tempCanvasCtx.lineTo(dw*0.67, dh*0.5);
+          tempCanvasCtx.stroke();
+
+          // keep the cycle going
+          raf = requestAnimationFrame(draw);
+        }
+
+        function initCanvasSize(width, vidWidth) {
+          var newWidth = Math.min(width, vidWidth);
+          tempCanvas.width = newWidth;
+          tempCanvas.height = Math.ceil(newWidth/2);
+        }
+
+        $resolution.onchange = function(ev) {
+          var width = $resolution.value;
+          initCanvasSize(width, video.videoWidth)
+        }
+        
+        // $('#trigger').click(function() {
+        //   $('#upload').trigger("click");
+        // });
+        // $('canvas').click(function() {
+        //   $('#upload').trigger("click");
+        // });
+        
+        // image chosen or taken
+        // $('#upload').change(function() {
+        //   var file = fileInput.files[0];
+        //   var canvas = document.getElementById('image');
+          
+        //   // MegaPixImage constructor accepts File/Blob object.
+        //   var mpImg = new MegaPixImage(file);
+          
+        //   // get EXIF data for orientation
+        //   EXIF.getData(file, function() {
+        //     var orientation = EXIF.getTag(file, "Orientation") || 0;
+        //     var max = $('#resolution').val();
+        //     // render image to canvas with maximum resolution and correct orientation
+        //     mpImg.render(canvas, { maxWidth: max, maxHeight: max, orientation: orientation });
+        //   });
+        // });
+        
+        // scan initiated
+        $('#scan').click(function() {
+          // initResult()
+          // doScan()
+          found = false;
+          if (raf === null) draw(); //start drawing
+          initResult();
+          doScan();
+        });
+        
+        // receive worker messages
+        function receiveMessage(e) {
+          console.log('receive')
+          if (e.data.localization && e.data.areas && e.data.areas.length > 0){
+            console.log(e.data.areas)
+          }
+          if (! e.data.decoding) return;
+          if (found) return; // temp debounce?
+
+          endTime = new Date().getTime();
+          
+          // decoding result
+          if (e.data.decoding && e.data.result && e.data.EAN && e.data.EAN.length > 0) {
+            console.log(e.data)
+            found = true;
+            endTime = new Date().getTime();
+            $('#time').html((endTime - startTime) / 1000);
+            $('#result').html(e.data.EAN.toString());
+            if (raf !== null) {
+              cancelAnimationFrame(raf);
+              raf = null;
+            }
+          } 
+          if (!found) {
+            //draw();
+            initResult();
+            doScan();
+          }
+        }
+        
+        SlaRleWorker.onmessage = receiveMessage;
+
+        initCanvasSize($resolution.value, Math.max(video.videoWidth, 600));
+        // tempCanvas.width = video.videoWidth;
+        // tempCanvas.height = video.videoHeight;
+
+        draw();
+        initResult();
+        doScan();
+        
+      }
+    </script>
+    
+  </body>
+</html>
