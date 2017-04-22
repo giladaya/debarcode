@@ -20,6 +20,7 @@
         return imageData.data[(y * imageData.width + x) * 4 + colorIdx];
     }
 
+    // TODO: optimize
     function findScanlines(imgData, gradient, SLASteps, SlaParams) {
         // width/height of the image data
         const w = imgData.width;
@@ -35,15 +36,15 @@
         // store result for scanline
         let resultSLs = [];
 
-        for (let row = 0; row < h; row += steps) {
+        for (var row = 0; row < h; row += steps) {
 
-            for (let pixel = 0; pixel < (w - MinLength) ; pixel++) {
+            for (var pixel = 0; pixel < (w - MinLength); pixel++) {
 
                 // test if gradient pixel
                 if (getPixelComponent(imgData, pixel, row, 0) == 255) {
                     const angle = gradient[row][pixel][0];
                     let angleSum = angle;
-                    let scanlineLength = 0, foundSomething = 1, nothingFound = 0;
+                    var scanlineLength = 0, foundSomething = 1, nothingFound = 0;
                     let scanline = { x: null, y: null, scanlineLength: 0, angleAVG: null };
 
                     for (let i = pixel + 1; i < w; i++) {   // loop 1
@@ -54,7 +55,7 @@
                         const othAngle = gradient[row][i][0];
                         if (othPixelValue == 255 && ((othAngle >= angle - SlaParams.angleDiff) && (othAngle <= angle + SlaParams.angleDiff))) {
                             foundSomething++;
-                            angleSum += othAngle;
+                            angleSum = angleSum + othAngle;
                             nothingFound = 0;
                         } else {
                             nothingFound++;

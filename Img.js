@@ -16,6 +16,7 @@
 }(this, function (b) {
     //use b in some fashion.
 
+    // TODO: optimize
     function getPixelComponent(imageData, x, y, colorIdx) {
         return imageData.data[(y * imageData.width + x) * 4 + colorIdx];
     }
@@ -97,10 +98,10 @@
         let gradSum = 0;
 
         // parse through all pixels
-        for (let y = 0; y < h; y++) {
+        for (var y = 0; y < h; y++) {
             tempLine = [];
 
-            for (let x = 0; x < w; x++) {
+            for (var x = 0; x < w; x++) {
                 // calculate neighbor pixels, escape out of bounds indexes
                 const xLeft = Math.max(0, x - 1);
                 const xRight = Math.min(w - 1, x + 1);
@@ -115,7 +116,7 @@
                 const gradX = Math.abs(vr - vl);
                 const gradY = Math.abs(vd - vu);
                 let gradient = parseInt((gradX + gradY) / 2);
-                gradSum += gradient;
+                gradSum = gradSum + gradient;
 
                 // calculate angles
                 //let angle = parseInt((Math.atan(gradY / gradX) * 180) / Math.PI);
