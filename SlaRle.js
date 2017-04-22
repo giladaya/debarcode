@@ -31,6 +31,7 @@ THE SOFTWARE.
 ------------------------ */
 
 self.importScripts('Img.js', 'SLA.js', 'RLE.js');
+console.log('Scripts Loaded');
 
 const debug = false;
 
@@ -87,6 +88,9 @@ self.onmessage = function (e) {
 		// start localization
 		var PBCAs = [];
 		PBCAs = SLA.localizationSLA(gradientRes.imgData, gradientRes.gradient, SLA_STEPS, SLA_PARAMS);
+		gradientRes.imgData = null;
+		gradientRes.gradient = null;
+		gradientRes = null;
 
 		// return biggest PBCA for localization comparison (Jaccard)
 		var areaSize = 0;
@@ -128,11 +132,11 @@ self.onmessage = function (e) {
 				const sum = rowImgData.data.reduce(function(acc, val, idx){ return (idx % 4 === 0) ? acc+val : acc}, 0);
 
 				// select grayscale scanline				
-				sl = Img.binarize(rowImgData, (sum / rowImgData.width));
+				const sl = Img.binarize(rowImgData, (sum / rowImgData.width));
 				//if (debug) postMessage({ localization: true, print: arrayToImageData(imageData, sl) });
 
 				const row = new Uint8ClampedArray(rowImgData.width)
-				rowImgData.data.reduce(
+				sl.data.reduce(
 					function(acc, val, idx){ 
 						if (idx % 4 === 0){
 							acc[idx / 4] = val;
@@ -176,11 +180,9 @@ self.onmessage = function (e) {
 		// RESULTS #########################################################################
 		//imageData = arrayToImageData(imageData, imageArrayBin);
 
-		imageData = null;
-		imageArray = null;
-		imageArrayGray = null;
-		imageArrayBin = null;
+		grayscaleRes.imgData = null;
 		PBCAs = null;
+		PBCAImgData = null;
 		result = null;
 
 
