@@ -20,7 +20,7 @@
         return imageData.data[(y * imageData.width + x) * 4 + colorIdx];
     }
 
-    function runLengthEncoding(row) {
+    function _runLengthEncoding(row) {
         var w = row.length;
         var result = [];
         var previous = null;
@@ -28,6 +28,33 @@
 
         for (var x = 0; x < w; x++) {
             current = row[x][0];
+
+            if (current != previous && previous != null) {
+                result.push({ val: previous, len: n });
+                n = 0;
+            }
+            n++;
+            previous = current
+        }
+
+        if (n > 0) {
+            result.push({ val: previous, len: n });
+        }
+
+        length = result.length;
+        start = result[0].val == 255 ? 1 : 0;
+        end = result[length - 1].val == 255 ? (length - 1) : length;
+
+        return result.slice(start, end);
+    }
+    function runLengthEncoding(row) {
+        var w = row.length;
+        var result = [];
+        var previous = null;
+        var n = 0;
+
+        for (var x = 0; x < w; x++) {
+            current = row[x];
 
             if (current != previous && previous != null) {
                 result.push({ val: previous, len: n });
@@ -100,6 +127,10 @@
             normalization.push(row);
         }
         return normalization;
+    }
+
+    function mod (a, n) {
+        return ((a % n) + n) % n;
     }
 
     function findSimilarNumbers(normalization) {
@@ -233,10 +264,13 @@
 
             checksum = 0;
             for (i = 0; i < 12; i++) {
-                checksum += EAN[i] * ((i + 1).mod(2) ? 1 : 3);
+                checksum += EAN[i] * (mod(i + 1, 2) ? 1 : 3);
             }
 
-            if (!((10 - checksum.mod(10)).mod(10) == parseInt(EAN[12]))) {
+            // if (!((10 - checksum.mod(10)).mod(10) == parseInt(EAN[12]))) {
+            //     EAN = "false";
+            // }
+            if (!mod((10 - mod(checksum, 10)), 10) == parseInt(EAN[12])) {
                 EAN = "false";
             }
         }

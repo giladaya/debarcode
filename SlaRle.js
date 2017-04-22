@@ -68,79 +68,25 @@ const SLA_PARAMS = {
 	minSLNumber: parseInt(25 * SLA_STEPS), // min number of SLs for PBCA	
 }
 
-// ### standard functions #######################################################################
-// http://javascript.about.com/od/problemsolving/a/modulobug.htm
 Number.prototype.mod = function (n) {
 	return ((this % n) + n) % n;
 }
 
-
-// transform array back to image data
-function arrayToImageData(img, array) {
-	for (row in array) {
-		for (pixel in array[row]) {
-			p = (parseInt(row) * img.width + parseInt(pixel)) * 4;
-			img.data[p + 0] = array[row][pixel][0];
-			img.data[p + 1] = array[row][pixel][1];
-			img.data[p + 2] = array[row][pixel][2];
-			img.data[p + 3] = array[row][pixel][3];
-		}
-	}
-	return img;
-}
-
-
-// transform imageData.data to array [row][pixel][rgba]
-function createArray(img) {
-	var tempArray = [];
-	var tempLine = [];
-	for (var i = 0; i < img.height; i += 1) {
-		tempLine = [];
-		for (var j = 0; j < img.width; j += 1) {
-			p = (i * img.width + j) * 4;
-			tempLine.push([img.data[p], img.data[p + 1], img.data[p + 2], img.data[p + 3]]);
-		}
-		tempArray.push(tempLine);
-	}
-	return tempArray;
-}
-// ### standard functions #######################################################################
-
-
-
 // receive trigger from program
 // initiate the localization algorithm
 self.onmessage = function (e) {
-	if (e.data.img) {
-		// create a new imageData object from the given parameters
-		imageData = {
-			data: new Uint8ClampedArray(e.data.img),
-			width: e.data.width,
-			height: e.data.height
-		};
-
+	if (e.data.imgData) {
 
 		// LOCALIZATION #########################################################################
-
-		// convert imageData to array
-		imageArray = createArray(imageData);	// create two-dimensional array from imageData
-
 		// convert to grayscale image
-		imageArrayGray = Img.convertToGrayscale(imageArray);
-		if (debug) postMessage({ localization: true, print: arrayToImageData(imageData, imageArrayGray.array) });
-		else imageData.data = null;
-		imageArray = null;
+		let grayscaleRes = Img.convertToGrayscale(e.data.imgData);
 
 		// use gradient operator
-		imageArrayBin = Img.gradientAndBinarize(imageArrayGray.array, GRAD_SOBEL_X);
-		if (debug) postMessage({ localization: true, print: arrayToImageData(imageData, imageArrayBin) });
-		else imageData.data = null;
-		//imageArrayGray = null;
+		let gradientRes = Img.gradientAndBinarize(grayscaleRes.imgData, GRAD_SOBEL_X);
 
 		// start localization
 		var PBCAs = [];
-		PBCAs = SLA.localizationSLA(imageArrayBin, SLA_STEPS, SLA_PARAMS);
-		imageArrayBin = null;
+		PBCAs = SLA.localizationSLA(gradientRes.imgData, gradientRes.gradient, SLA_STEPS, SLA_PARAMS);
 
 		// return biggest PBCA for localization comparison (Jaccard)
 		var areaSize = 0;
@@ -167,27 +113,36 @@ self.onmessage = function (e) {
 			var PBCA = PBCAs[p];
 
 			// slicing imageArrayGray.array to PBCA size
-			var PBCAimg = [];
-			for (i = PBCA.startY; i <= PBCA.endY; i++) {
-				PBCAimg.push(imageArrayGray.array[i].slice(PBCA.startX, (PBCA.endX + 1)));
-			}
+			let PBCAImgData = Img.getRect(
+				grayscaleRes.imgData, 
+				PBCA.startX, 
+				PBCA.startY,
+				(PBCA.endX - PBCA.startX),
+				(PBCA.endY - PBCA.startY)
+			)
 
 			// decoding for each scanline
 			for (s in SLs) {
-
-				var row = PBCAimg[Math.floor(PBCAimg.length * SLs[s])];
-				var sum = 0;
-				for (r in row) {
-					var pxl = row[r];
-					sum += pxl[0];
-				}
+				const idx = Math.floor(PBCAImgData.height * SLs[s]);
+				const rowImgData = Img.getRow(PBCAImgData, idx)
+				const sum = rowImgData.data.reduce(function(acc, val, idx){ return (idx % 4 === 0) ? acc+val : acc}, 0);
 
 				// select grayscale scanline				
-				sl = Img.binarize([row], (sum / row.length));
+				sl = Img.binarize(rowImgData, (sum / rowImgData.width));
 				//if (debug) postMessage({ localization: true, print: arrayToImageData(imageData, sl) });
 
+				const row = new Uint8ClampedArray(rowImgData.width)
+				rowImgData.data.reduce(
+					function(acc, val, idx){ 
+						if (idx % 4 === 0){
+							acc[idx / 4] = val;
+						}
+						return acc;
+					}, 
+					row
+				)
 				// RLEncoding the scanline
-				rle = RLE.runLengthEncoding(sl[0]);
+				rle = RLE.runLengthEncoding(row);
 				rows = RLE.sliceDigits(rle);
 
 				for (r in rows) {

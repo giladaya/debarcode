@@ -20,41 +20,41 @@
         return imageData.data[(y * imageData.width + x) * 4 + colorIdx];
     }
 
-    function findScanlines(array, SLASteps, SlaParams) {
+    function findScanlines(imgData, gradient, SLASteps, SlaParams) {
         // width/height of the image data
-        var w = array[0].length;
-        var h = array.length;
+        const w = imgData.width;
+        const h = imgData.height;
         //var max = Math.max(array.length, array[0].length);
-        var max = w;    // take width because of horizontal barcodes
+        const max = w;    // take width because of horizontal barcodes
 
         // set parameters depending on image dimensions
-        var steps = Math.floor(h / (h * SLASteps));
-        var MaxDist = (max * SlaParams.maxDist) / 100;
-        var MinLength = (max * SlaParams.minLength) / 100;
+        const steps = Math.floor(h / (h * SLASteps));
+        const MaxDist = (max * SlaParams.maxDist) / 100;
+        const MinLength = (max * SlaParams.minLength) / 100;
 
         // store result for scanline
-        var resultSLs = [];
+        let resultSLs = [];
 
-        for (var row = 0; row < array.length; row += steps) {
+        for (let row = 0; row < h; row += steps) {
 
-            for (var pixel = 0; pixel < (array[row].length - MinLength) ; pixel++) {
+            for (let pixel = 0; pixel < (w - MinLength) ; pixel++) {
 
                 // test if gradient pixel
-                if (array[row][pixel][0] == 255) {
-                    var pxl = array[row][pixel];
-                    var angle = pxl[4];
-                    var angleSum = pxl[4];
-                    var scanlineLength = 0, foundSomething = 1, nothingFound = 0;
-                    var scanline = { x: null, y: null, scanlineLength: 0, angleAVG: null };
+                if (getPixelComponent(imgData, pixel, row, 0) == 255) {
+                    const angle = gradient[row][pixel][0];
+                    let angleSum = angle;
+                    let scanlineLength = 0, foundSomething = 1, nothingFound = 0;
+                    let scanline = { x: null, y: null, scanlineLength: 0, angleAVG: null };
 
-                    for (var i = pixel + 1; i < w; i++) {   // loop 1
+                    for (let i = pixel + 1; i < w; i++) {   // loop 1
                         scanlineLength++;
 
                         // test if gradient and increase counter if similar
-                        var oth = array[row][i];
-                        if (oth[0] == 255 && ((oth[4] >= pxl[4] - SlaParams.angleDiff) && (oth[4] <= pxl[4] + SlaParams.angleDiff))) {
+                        var othPixelValue = getPixelComponent(imgData, i, row, 0)
+                        const othAngle = gradient[row][i][0];
+                        if (othPixelValue == 255 && ((othAngle >= angle - SlaParams.angleDiff) && (othAngle <= angle + SlaParams.angleDiff))) {
                             foundSomething++;
-                            angleSum += oth[4];
+                            angleSum += othAngle;
                             nothingFound = 0;
                         } else {
                             nothingFound++;
@@ -83,11 +83,11 @@
         return resultSLs;
     }
 
-    function findPBCAfromSLs(scanlines, SlaParams) {
+    function findPBCAfromSLs(width, scanlines, SlaParams) {
         var PBCAs = [];
 
         //var max = Math.max(imageData.height, imageData.width);
-        var max = imageData.width;  // take width because of horizontal barcodes
+        var max = width;  // take width because of horizontal barcodes
 
         var MaxSLDist = (max * SlaParams.maxSLDist) / 100;
         var MaxLengthDiff = (max * SlaParams.maxLengthDiff) / 100;
@@ -149,15 +149,21 @@
         return PBCAs;
     }
 
-    function localizationSLA(array, SLASteps, SlaParams) {
+    /**
+     * @param imgData: ImageData
+     * @param gradient: Array of [angle, q]
+     * @param SLASteps: number
+     * @param SlaParams: object
+     */
+    function localizationSLA(imgData, gradient, SLASteps, SlaParams) {
         // calulate border aroung barcode image
         //var max = Math.max(imageData.height, imageData.width);
-        var max = imageData.width;  // take width because of horizontal barcodes
+        var max = imgData.width;  // take width because of horizontal barcodes
         var borderX = Math.floor((max * locBorder) / 100);
         var borderY = 0;//(max * locBorder) / 100;
 
         // find scanlines that fit into requirements
-        var scanlines = findScanlines(array, SLASteps, SlaParams);
+        var scanlines = findScanlines(imgData, gradient, SLASteps, SlaParams);
 
         // mark scanlines
         if (debug) {
@@ -174,7 +180,7 @@
 
 
         // compare scanlines
-        var areas = findPBCAfromSLs(scanlines, SlaParams);
+        var areas = findPBCAfromSLs(imgData.width, scanlines, SlaParams);
 
         // edit areas for returning results
         var areaSize = 0;
