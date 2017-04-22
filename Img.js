@@ -44,24 +44,6 @@
         return new ImageData(data, imageData.width, 1);
     }
 
-    function _convertToGrayscale(array) {
-        // width/height of the image data
-        var w = array[0].length;
-        var h = array.length;
-        var graySum = 0;
-
-        for (row in array) {
-            for (pixel in array[row]) {
-                // gray = 0.299*r + 0.587*g + 0.114*b
-                gray = parseInt((0.299 * array[row][pixel][0]) + (0.587 * array[row][pixel][1]) + (0.114 * array[row][pixel][2]));
-                array[row][pixel][0] = array[row][pixel][1] = array[row][pixel][2] = gray;
-                graySum += gray;
-            }
-        }
-
-        return { array: array, threshold: (graySum / (w * h)) };
-    }
-
     /*
      * @param imgData: ImageData
      */
@@ -70,6 +52,9 @@
         const h = imgData.height;
         let graySum = 0;
         const newImgData = new ImageData(imgData.width, imgData.height);
+        let buf = new ArrayBuffer(newImgData.data.length);
+        let buf8 = new Uint8ClampedArray(buf);
+        let buf32 = new Uint32Array(buf);
 
         for (let row = 0; row < h; row++ ) {
             for (let col = 0; col < w; col++ ) {
@@ -78,59 +63,19 @@
                     green = getPixelComponent(imgData, col, row, 1),
                     blue = getPixelComponent(imgData, col, row, 2);
                 const gray = parseInt((0.299 * red) + (0.587 * green) + (0.114 * blue));
-                putPixel(newImgData, col, row, gray, gray, gray);
+                // putPixel(newImgData, col, row, gray, gray, gray);
+                buf32[row * w + col] =
+                    (255  << 24) |    // alpha
+                    (gray << 16) |    // blue
+                    (gray <<  8) |    // green
+                     gray;            // red
                 graySum += gray;
             }
         }
+        newImgData.data.set(buf8);
 
         // return { array: array, threshold: (graySum / (w * h)) };
         return {imgData: newImgData, threshold: (graySum / (w * h)) };
-    }
-
-    function _gradientSimple(array, operator) {
-        // parameters of operator
-        var side = Math.round(Math.sqrt(operator.length));
-        var halfSide = Math.floor(side / 2);
-        // width/height of the image data
-        var w = array[0].length;
-        var h = array.length;
-        // destination array for output and temporary arrays for filling
-        var dst = [];
-
-        var tempLine = [];
-        // gradient sum
-        var gradSum = 0;
-
-        // parse through all pixels
-        for (var y = 0; y < h; y++) {
-            tempLine = [];
-
-            for (var x = 0; x < w; x++) {
-                // calculate neighbor pixels, escape out of bounds indexes
-                var xLeft = Math.max(0, x - 1);
-                var xRight = Math.min(w - 1, x + 1);
-                var yUp = Math.max(0, y - 1);
-                var yDown = Math.min(h - 1, y + 1);
-
-                // simple gradient (equation 19, page 49)
-                var gradX = Math.abs(array[y][xRight][0] - array[y][xLeft][0]);
-                var gradY = Math.abs(array[yDown][x][0] - array[yUp][x][0]);
-                var gradient = parseInt((gradX + gradY) / 2);
-                gradSum += gradient;
-
-                // calculate angles
-                //var angle = parseInt((Math.atan(gradY / gradX) * 180) / Math.PI);
-                var angle = parseInt(((gradX == 0 ? 0 : Math.atan(gradY / gradX)) * 180) / Math.PI);
-                var q = (gradX >= 0 && gradY >= 0) ? 1 : -1;
-
-                // set gradient value for destination pixel
-                gradient = Math.abs(gradient);
-                tempLine.push([gradient, gradient, gradient, 255, angle, q]);
-            }
-            dst.push(tempLine);
-        }
-
-        return { result: dst, threshold: (gradSum / (w * h)) };
     }
 
     function gradientSimple(imgData, operator) {
@@ -143,6 +88,9 @@
         // destination array for output and temporary arrays for filling
         let dst = [];
         const newImgData = new ImageData(imgData.width, imgData.height);
+        let buf = new ArrayBuffer(newImgData.data.length);
+        let buf8 = new Uint8ClampedArray(buf);
+        let buf32 = new Uint32Array(buf);
 
         let tempLine = [];
         // gradient sum
@@ -176,30 +124,20 @@
 
                 // set gradient value for destination pixel
                 gradient = Math.abs(gradient);
-                putPixel(newImgData, x, y, gradient, gradient, gradient);
+                // putPixel(newImgData, x, y, gradient, gradient, gradient);
+                buf32[y * w + x] =
+                    (255  << 24) |    // alpha
+                    (gradient << 16) |    // blue
+                    (gradient <<  8) |    // green
+                     gradient;            // red
 
                 tempLine.push([angle, q]);
             }
             dst.push(tempLine);
         }
+        newImgData.data.set(buf8);
 
         return { imgData: newImgData, gradient: dst, threshold: (gradSum / (w * h)) };
-    }
-
-    function _binarize(array, threshold) {
-        // width/height of the image data
-        var w = array[0].length;
-        var h = array.length;
-
-        // parse through all pixels
-        for (var y = 0; y < h; y++) {
-            for (var x = 0; x < w; x++) {
-                var value = (array[y][x][0] >= threshold) ? 255 : 0;
-                array[y][x][0] = array[y][x][1] = array[y][x][2] = value;
-            }
-        }
-
-        return array;
     }
 
     /*
@@ -208,28 +146,27 @@
     function binarize(imgData, threshold) {
         const w = imgData.width;
         const h = imgData.height;
-        const newImgData = new ImageData(imgData.data, imgData.width, imgData.height);
+        const newImgData = new ImageData(imgData.width, imgData.height);
+        let buf = new ArrayBuffer(newImgData.data.length);
+        let buf8 = new Uint8ClampedArray(buf);
+        let buf32 = new Uint32Array(buf);
 
         for (let row = 0; row < h; row++ ) {
             for (let col = 0; col < w; col++ ) {
                 // gray = 0.299*r + 0.587*g + 0.114*b
                 const red = getPixelComponent(imgData, col, row, 0);
                 const value = (red >= threshold) ? 255 : 0;
-                putPixel(newImgData, col, row, value, value, value);
+                // putPixel(newImgData, col, row, value, value, value);
+                buf32[row * w + col] =
+                    (255  << 24) |    // alpha
+                    (value << 16) |    // blue
+                    (value <<  8) |    // green
+                     value;            // red
             }
         }
+        newImgData.data.set(buf8);
 
         return newImgData;
-    }
-
-    function _gradientAndBinarize(array, gradSobelX) {
-        var tempArray;
-
-        // simple gradient
-        var gradient = gradientSimple(array, gradSobelX);
-        tempArray = binarize(gradient.result, gradient.threshold);
-
-        return tempArray;
     }
 
     function gradientAndBinarize(imgData, gradSobelX) {
