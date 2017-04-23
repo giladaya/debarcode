@@ -3,7 +3,7 @@
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
         // AMD. Register as an anonymous module.
-        define(['b'], function (b) {
+        define([], function () {
             // Also create a global in case some scripts
             // that are loaded still are looking for
             // a global even when an AMD loader is in use.
@@ -13,14 +13,12 @@
         // Browser globals
         root.SLA = factory(root.b);
     }
-}(this, function (b) {
-    //use b in some fashion.
+}(this, function () {
 
     function getPixelComponent(imageData, x, y, colorIdx) {
         return imageData.data[(y * imageData.width + x) * 4 + colorIdx];
     }
 
-    // TODO: optimize
     function findScanlines(imgData, gradient, SLASteps, SlaParams) {
         // width/height of the image data
         const w = imgData.width;

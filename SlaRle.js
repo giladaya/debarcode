@@ -69,16 +69,14 @@ const SLA_PARAMS = {
 	minSLNumber: parseInt(25 * SLA_STEPS), // min number of SLs for PBCA	
 }
 
-Number.prototype.mod = function (n) {
-	return ((this % n) + n) % n;
-}
-
 // receive trigger from program
 // initiate the localization algorithm
 self.onmessage = function (e) {
 	if (e.data.imgData) {
 
-		// LOCALIZATION #########################################################################
+		//---------------
+		// LOCALIZATION 
+		//---------------
 		// convert to grayscale image
 		let grayscaleRes = Img.convertToGrayscale(e.data.imgData);
 
@@ -109,7 +107,9 @@ self.onmessage = function (e) {
 		postMessage({ localization: true, name: "Stern (2011)", result: true, areas: result });
 		
 
-		// DECODING #########################################################################
+		//-----------
+		// DECODING 
+		//-----------
 
 		EANs = [];
 		for (p in PBCAs) {
@@ -177,14 +177,14 @@ self.onmessage = function (e) {
 		}	// end parsing all PBCAs
 
 
-		// RESULTS #########################################################################
-		//imageData = arrayToImageData(imageData, imageArrayBin);
+		// ---------
+		// RESULTS 
+		// ---------
 
 		grayscaleRes.imgData = null;
 		PBCAs = null;
 		PBCAImgData = null;
 		result = null;
-
 
 		postMessage({ decoding: true, name: "Stern (2011)", result: true, EAN: EANs });
 	} else {

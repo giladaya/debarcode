@@ -3,7 +3,7 @@
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
         // AMD. Register as an anonymous module.
-        define(['b'], function (b) {
+        define([], function () {
             // Also create a global in case some scripts
             // that are loaded still are looking for
             // a global even when an AMD loader is in use.
@@ -13,40 +13,12 @@
         // Browser globals
         root.RLE = factory(root.b);
     }
-}(this, function (b) {
-    //use b in some fashion.
+}(this, function () {
 
     function getPixelComponent(imageData, x, y, colorIdx) {
         return imageData.data[(y * imageData.width + x) * 4 + colorIdx];
     }
 
-    function _runLengthEncoding(row) {
-        var w = row.length;
-        var result = [];
-        var previous = null;
-        var n = 0;
-
-        for (var x = 0; x < w; x++) {
-            current = row[x][0];
-
-            if (current != previous && previous != null) {
-                result.push({ val: previous, len: n });
-                n = 0;
-            }
-            n++;
-            previous = current
-        }
-
-        if (n > 0) {
-            result.push({ val: previous, len: n });
-        }
-
-        length = result.length;
-        start = result[0].val == 255 ? 1 : 0;
-        end = result[length - 1].val == 255 ? (length - 1) : length;
-
-        return result.slice(start, end);
-    }
     function runLengthEncoding(row) {
         var w = row.length;
         var result = [];
@@ -267,9 +239,6 @@
                 checksum += EAN[i] * (mod(i + 1, 2) ? 1 : 3);
             }
 
-            // if (!((10 - checksum.mod(10)).mod(10) == parseInt(EAN[12]))) {
-            //     EAN = "false";
-            // }
             if (!mod((10 - mod(checksum, 10)), 10) == parseInt(EAN[12])) {
                 EAN = "false";
             }
