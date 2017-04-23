@@ -104,8 +104,7 @@ self.onmessage = function (e) {
 				result.push(pbca);
 			}
 		}
-		postMessage({ localization: true, name: "Stern (2011)", result: true, areas: result });
-		
+		// postMessage({ type:'localization', areas: result });
 
 		//-----------
 		// DECODING 
@@ -133,7 +132,6 @@ self.onmessage = function (e) {
 
 				// select grayscale scanline				
 				const sl = Img.binarize(rowImgData, (sum / rowImgData.width));
-				//if (debug) postMessage({ localization: true, print: arrayToImageData(imageData, sl) });
 
 				const row = new Uint8ClampedArray(rowImgData.width)
 				sl.data.reduce(
@@ -186,8 +184,11 @@ self.onmessage = function (e) {
 		PBCAImgData = null;
 		result = null;
 
-		postMessage({ decoding: true, name: "Stern (2011)", result: true, EAN: EANs });
+		postMessage({ type: 'decoding', payload: {EAN: EANs} });
 	} else {
-		postMessage({ decoding: false });
+		postMessage({ type: 'decoding', payload: {EAN: []} });
 	}
 };
+
+//signal that the worker is ready
+postMessage({ type: 'status', payload: {status: 'ready'} });
