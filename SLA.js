@@ -164,20 +164,6 @@
         // find scanlines that fit into requirements
         var scanlines = findScanlines(imgData, gradient, SLASteps, SlaParams);
 
-        // mark scanlines
-        if (debug) {
-            for (s in scanlines) {
-                var sl = scanlines[s];
-                for (var x = sl.x; x <= (sl.x + sl.scanlineLength) ; x++) {
-                    array[sl.y][x][0] = 255;
-                    array[sl.y][x][1] = 0;
-                    array[sl.y][x][2] = 0;
-                }
-            }
-            postMessage({ localization: true, print: arrayToImageData(imageData, array) });
-        }
-
-
         // compare scanlines
         var areas = findPBCAfromSLs(imgData.width, scanlines, SlaParams);
 
@@ -201,22 +187,6 @@
                 startY: Math.min.apply(null, Y) - borderY,
                 endY: Math.max.apply(null, Y) + borderY
             });
-        }
-
-        // mark PBCAs in Image, only debug
-        if (debug) {
-            for (ba in result) {
-                var pbca = result[ba];
-
-                // colorize pixels
-                for (var y = pbca.startY; y <= pbca.endY; y++) {
-                    for (var x = pbca.startX; x <= pbca.endX; x++) {
-                        array[y][x][1] = 255;
-                        array[y][x][2] = 0;
-                    }
-                }
-            }
-            postMessage({ localization: true, print: arrayToImageData(imageData, array) });
         }
 
         return result;

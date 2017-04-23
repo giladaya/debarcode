@@ -141,6 +141,7 @@
 
     /*
      * @param imgData: ImageData
+     * @param threshold: number
      */
     function binarize(imgData, threshold) {
         const w = imgData.width;
