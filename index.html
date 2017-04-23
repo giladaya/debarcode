@@ -47,7 +47,7 @@
           </div>
           
           <div class="row">
-            <div class="col-xs-6">
+            <div class="col-xs-12">
               <div class="input-group">
                 <span class="input-group-addon">Max. Res</span>
                 <select id="resolution" class="form-control" >
@@ -61,15 +61,18 @@
                 <span class="input-group-addon">px</span>
               </div>
             </div>
-            <div class="col-xs-6">
+          </div>
+
+          <div class="row">
+            <div class="col-xs-6 pull-right">
               <button id="scan" type="button" class="btn btn-success btn-lg btn-block">Scan</button>
             </div>
           </div>
                     
           <div class="row">
             <div class="col-xs-12">
-              <canvas id="image"></canvas>
-              <video>Video tag not supported</video>
+              <canvas id="workCanvas">Canvas tag not supported</canvas>
+              <video id="camera">Video tag not supported</video>
             </div>
           </div>
           
@@ -80,192 +83,207 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
     
-    <!-- <script src="https://rawgit.com/jseidelin/exif-js/master/exif.js"></script>
-    <script src="https://rawgit.com/stomita/ios-imagefile-megapixel/master/src/megapix-image.js"></script>
-    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script> -->
-
     <script>
 
-      var video = document.querySelector('video');
-      var constraints = { 
-        video: { 
-          facingMode: ("environment") ,
-          width: 600, 
-          height: 800
-        } 
-      };
-
-      function getBackCamConstraints(devices) {
-        devices = devices.filter(function(d) {
-          return d.kind === 'videoinput';
-        });
-        var back = devices.find(function(d) {
-          return d.label.toLowerCase().indexOf('back') !== -1;
-        }) || (devices.length && devices[devices.length - 1]);
-        var constraints = {video: true}
-        if (back) {
-          constraints.video = {deviceId: back.deviceId};
-          // constraints.video = {mandatory: {deviceId: back.deviceId}};
-        }
-        return constraints;
-      }
-
-      navigator.mediaDevices.enumerateDevices()
-      .then(function(devices) {
-          constraints = getBackCamConstraints(devices);
-          return navigator.mediaDevices.getUserMedia(constraints);
-      })
-      .then(function(mediaStream) {
-        video.srcObject = mediaStream;
-        video.onloadedmetadata = function(e) {
-          video.play();
-          startApp();
-        };
-      })
-      .catch(function(err) { 
-        alert(err.name);
-        console.log(err.name + ": " + err.message); 
-      }); // always check for errors at the end.
-
-      startApp = function() {
-        var raf = null; //requestAnimationFrame handle
+      const TimeKeeper = (function() {
         var startTime;
-        var endTime;
-        var found = false;
-        var tempCanvas = document.getElementById('image');
-        var fileInput = document.getElementById('upload');
-        var SlaRleWorker = new Worker('./SlaRle.js');
-        var $resolution = document.getElementById('resolution');
 
-        function initResult() {
-          $('#time').html("0");
-          $('#result').html("-");
-          // start time measurement
-          startTime = new Date().getTime();
+        return {
+          start: function() {
+            startTime = Date.now();
+          },
+          end: function() {
+            return (Date.now() - startTime)
+          }
         }
+      })()
 
-        function doScan() {
-          var tempCanvasCtx = tempCanvas.getContext("2d");
-          var imgData = tempCanvasCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      //refs
+      var $video = document.getElementById('camera');
+      var $workCanvas = document.getElementById('workCanvas');
+      var $resolution = document.getElementById('resolution');
+      var $time = document.getElementById('time');
+      var $result = document.getElementById('result');
+      var $btnScan = document.getElementById('scan');
 
-          // prepare message
-          var message = {
-            imgData: imgData,
-          };
-          
-          console.log('send')
-          SlaRleWorker.postMessage(message);
-          message = null;
-        }
+      var raf = null; //requestAnimationFrame handle
+      var found = false;
+      var wwReady = false;
+      
+      var SlaRleWorker = new Worker('./SlaRle.js');
 
-        function draw() {
-          var tempCanvasCtx = tempCanvas.getContext("2d");
-          var dw = tempCanvas.width,
-            dh = tempCanvas.height,
-            sw = video.videoWidth,
-            sh = Math.ceil(dh / dw * sw)
-            sy = Math.floor((video.videoHeight - sh) / 2);
+      attachEvents();
+      initCamera($video, startApp);
 
-          // tempCanvasCtx.drawImage(video, 0, 0);
-          tempCanvasCtx.drawImage(video, 0, sy, sw, sh, 0, 0, dw, dh);
-
-          // draw red line
-          tempCanvasCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)'
-          tempCanvasCtx.beginPath();
-          tempCanvasCtx.moveTo(dw*0.33, dh*0.5);
-          tempCanvasCtx.lineTo(dw*0.67, dh*0.5);
-          tempCanvasCtx.stroke();
-
-          // keep the cycle going
-          raf = requestAnimationFrame(draw);
-        }
-
-        function initCanvasSize(width, vidWidth) {
-          var newWidth = Math.min(width, vidWidth);
-          tempCanvas.width = newWidth;
-          tempCanvas.height = Math.ceil(newWidth/2);
-        }
-
+      function attachEvents() {
         $resolution.onchange = function(ev) {
           var width = $resolution.value;
-          initCanvasSize(width, video.videoWidth)
+          initCanvasSize(width, $video.videoWidth)
         }
-        
-        // $('#trigger').click(function() {
-        //   $('#upload').trigger("click");
-        // });
-        // $('canvas').click(function() {
-        //   $('#upload').trigger("click");
-        // });
-        
-        // image chosen or taken
-        // $('#upload').change(function() {
-        //   var file = fileInput.files[0];
-        //   var canvas = document.getElementById('image');
-          
-        //   // MegaPixImage constructor accepts File/Blob object.
-        //   var mpImg = new MegaPixImage(file);
-          
-        //   // get EXIF data for orientation
-        //   EXIF.getData(file, function() {
-        //     var orientation = EXIF.getTag(file, "Orientation") || 0;
-        //     var max = $('#resolution').val();
-        //     // render image to canvas with maximum resolution and correct orientation
-        //     mpImg.render(canvas, { maxWidth: max, maxHeight: max, orientation: orientation });
-        //   });
-        // });
-        
+
         // scan initiated
-        $('#scan').click(function() {
-          // initResult()
-          // doScan()
+        $btnScan.onclick = function() {
           found = false;
-          if (raf === null) draw(); //start drawing
-          initResult();
+          if (raf === null) drawFrame(); //start drawing
+          initResults();
           doScan();
-        });
-        
-        // receive worker messages
-        function receiveMessage(e) {
-          console.log('receive')
-          if (e.data.localization && e.data.areas && e.data.areas.length > 0){
-            console.log(e.data.areas)
-          }
-          if (! e.data.decoding) return;
-          if (found) return; // temp debounce?
-
-          endTime = new Date().getTime();
-          
-          // decoding result
-          if (e.data.decoding && e.data.result && e.data.EAN && e.data.EAN.length > 0) {
-            console.log(e.data)
-            found = true;
-            endTime = new Date().getTime();
-            $('#time').html((endTime - startTime) / 1000);
-            $('#result').html(e.data.EAN.toString());
-            if (raf !== null) {
-              cancelAnimationFrame(raf);
-              raf = null;
-            }
-          } 
-          if (!found) {
-            //draw();
-            initResult();
-            doScan();
-          }
         }
-        
-        SlaRleWorker.onmessage = receiveMessage;
 
-        initCanvasSize($resolution.value, Math.max(video.videoWidth, 600));
-        // tempCanvas.width = video.videoWidth;
-        // tempCanvas.height = video.videoHeight;
-
-        draw();
-        initResult();
-        doScan();
-        
+        SlaRleWorker.onmessage = handleWwMessage;
       }
+
+      // var constraints = { 
+      //   video: { 
+      //     facingMode: ("environment") ,
+      //     width: 600, 
+      //     height: 800
+      //   } 
+      // };
+
+      function initCamera($video, cb) {
+        // create constraints for back camera from devices list
+        function getBackCamConstraints(devices) {
+          devices = devices.filter(function(d) {
+            return d.kind === 'videoinput';
+          });
+          var back = devices.find(function(d) {
+            return d.label.toLowerCase().indexOf('back') !== -1;
+          }) || (devices.length && devices[devices.length - 1]);
+          var constraints = {video: true}
+          if (back) {
+            constraints.video = {deviceId: back.deviceId};
+            // constraints.video = {mandatory: {deviceId: back.deviceId}};
+          }
+          return constraints;
+        }
+
+        // initialize back camera
+        navigator.mediaDevices.enumerateDevices()
+        .then(function(devices) {
+            var constraints = getBackCamConstraints(devices);
+            return navigator.mediaDevices.getUserMedia(constraints);
+        })
+        .then(function(mediaStream) {
+          $video.srcObject = mediaStream;
+          $video.onloadedmetadata = function(e) {
+            $video.play();
+            cb();
+          };
+        })
+        .catch(function(err) { 
+          alert(err.name);
+          console.log(err.name + ": " + err.message); 
+        }); // always check for errors at the end.
+      }
+
+      function startApp() {
+        initResults();
+        initCanvasSize($resolution.value, Math.max($video.videoWidth, 600));
+        drawFrame();
+        doScan();
+      }
+
+      function showResults(result, timeMs) {
+        $time.innerText = (timeMs / 1000);
+        $result.innerText = result;
+      }
+      function initResults() {
+        showResults('...', 0);
+      }
+
+      function doScan() {
+        TimeKeeper.start();
+        var tempCanvasCtx = $workCanvas.getContext("2d");
+        var imgData = tempCanvasCtx.getImageData(0, 0, $workCanvas.width, $workCanvas.height);
+
+        // prepare message
+        var message = {
+          imgData: imgData,
+        };
+        
+        console.log('send')
+        SlaRleWorker.postMessage(message);
+        message = null;
+      }
+
+      function drawFrame() {
+        if (wwReady) {
+          var ctx = $workCanvas.getContext("2d");
+          drawVideo($video, $workCanvas, ctx);
+          drawLine($workCanvas, ctx);
+        }
+        // keep the cycle going
+        raf = requestAnimationFrame(drawFrame);
+      }
+
+      function drawVideo($video, $canvas, ctx) {
+        var dw = $canvas.width,
+          dh = $canvas.height,
+          sw = $video.videoWidth,
+          sh = Math.ceil(dh / dw * sw)
+          sy = Math.floor(($video.videoHeight - sh) / 2);
+
+        // ctx.drawImage(video, 0, 0);
+        ctx.drawImage($video, 0, sy, sw, sh, 0, 0, dw, dh);
+      }
+
+      function drawLine($canvas, ctx) {
+        var dw = $canvas.width,
+          dh = $canvas.height
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.9)'
+        ctx.beginPath();
+        ctx.moveTo(dw*0.33, dh*0.5);
+        ctx.lineTo(dw*0.67, dh*0.5);
+        ctx.stroke();
+      }
+
+      function initCanvasSize(width, vidWidth) {
+        var newWidth = Math.min(width, vidWidth);
+        $workCanvas.width = newWidth;
+        $workCanvas.height = Math.ceil(newWidth/2);
+      }
+
+      function handleDecodeResult(payload) {
+        if (found) {
+          return;
+        }
+        if (payload.EAN && payload.EAN.length > 0) {
+          found = true;
+          showResults(payload.EAN.toString(), TimeKeeper.end())
+
+          //cancel next scan
+          if (raf !== null) {
+            cancelAnimationFrame(raf);
+            raf = null;
+          }
+        } else {
+          showResults('...', TimeKeeper.end())
+          doScan();
+        }
+      }
+
+      function handleStatusUpdate(payload) {
+        if (payload.status === 'ready') {
+          wwReady = true;
+        }
+      }
+
+      // receive worker messages
+      function handleWwMessage(e) {
+        console.log('received', e.data.type)
+
+        switch (e.data.type) {
+          case 'decoding': 
+            handleDecodeResult(e.data.payload);
+            break;
+          case 'status':
+            handleStatusUpdate(e.data.payload);
+            break;
+          default:
+            break;
+        }
+      }
+      
     </script>
     
   </body>
