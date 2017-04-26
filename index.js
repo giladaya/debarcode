@@ -18,7 +18,7 @@ const PADDING_V = 0.15    // vertical padding pct between view and work frame
 const PADDING_H = 0.25   // horizontal padding pct between view and work frame
 
 // Web Worker
-var SlaRleWorker = new Worker('./js/SlaRle.js');
+var SlaRleWorker = new Worker('./js/SlaRleWorker.js');
 
 // refs
 var $video = document.getElementById('camera');
