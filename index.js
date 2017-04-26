@@ -13,14 +13,17 @@ const TimeKeeper = (function() {
   }
 })()
 
-const ASPECT_RATIO = 0.5
+const ASPECT_RATIO = 0.5 // aspect ratio of view canvas
+const PADDING_V = 0.15    // vertical padding pct between view and work frame
+const PADDING_H = 0.25   // horizontal padding pct between view and work frame
 
 // Web Worker
 var SlaRleWorker = new Worker('./js/SlaRle.js');
 
 // refs
 var $video = document.getElementById('camera');
-var $workCanvas = document.getElementById('workCanvas');
+var $viewCanvas = document.getElementById('viewCanvas');
+var $workCanvas = document.createElement('canvas');
 var $resolution = document.getElementById('resolution');
 var $time = document.getElementById('time');
 var $result = document.getElementById('result');
@@ -41,7 +44,7 @@ initCamera($video, startApp);
 function attachEvents() {
   $resolution.onchange = function(ev) {
     var width = $resolution.value;
-    initCanvasSize($workCanvas, width, $video.videoWidth, ASPECT_RATIO);
+    initCanvasSize(width, $video.videoWidth, ASPECT_RATIO);
   }
 
   // scan initiated
@@ -101,7 +104,7 @@ function initCamera($video, cb) {
 
 function startApp() {
   initResults();
-  initCanvasSize($workCanvas, $resolution.value, Math.max($video.videoWidth, 600), ASPECT_RATIO);
+  initCanvasSize($resolution.value, Math.max($video.videoWidth, 600), ASPECT_RATIO);
   drawFrame();
   doScan();
 }
@@ -116,8 +119,8 @@ function initResults() {
 
 function doScan() {
   TimeKeeper.start();
-  var tempCanvasCtx = $workCanvas.getContext("2d");
-  var imgData = tempCanvasCtx.getImageData(0, 0, $workCanvas.width, $workCanvas.height);
+  var ctx = $workCanvas.getContext("2d");
+  var imgData = ctx.getImageData(0, 0, $workCanvas.width, $workCanvas.height);
 
   // prepare message
   var message = {
@@ -131,9 +134,22 @@ function doScan() {
 
 function drawFrame() {
   if (wwReady) {
-    var ctx = $workCanvas.getContext("2d");
-    drawVideo($video, $workCanvas, ctx);
-    drawLine($workCanvas, ctx);
+    var ctx = $viewCanvas.getContext("2d");
+    drawVideo($video, $viewCanvas, ctx);
+
+    var wCtx = $workCanvas.getContext("2d");
+
+    // copy from view to work canvas
+    var dw = $workCanvas.width,
+      dh = $workCanvas.height,
+      sw = dw,
+      sh = dh,
+      sx = $viewCanvas.width * PADDING_H, 
+      sy = $viewCanvas.height * PADDING_V;
+    wCtx.drawImage($viewCanvas, sx, sy, sw, sh, 0, 0, dw, dh);
+
+    drawLine($viewCanvas, ctx);
+    drawMask($viewCanvas, ctx, sx, sy, sw, sh);
   }
   // keep the cycle going
   raf = requestAnimationFrame(drawFrame);
@@ -144,10 +160,11 @@ function drawVideo($video, $canvas, ctx) {
     dh = $canvas.height,
     sw = $video.videoWidth,
     sh = Math.ceil(dh / dw * sw)
+    sx = Math.floor(($video.videoWidth - sw) / 2);
     sy = Math.floor(($video.videoHeight - sh) / 2);
 
   // ctx.drawImage(video, 0, 0);
-  ctx.drawImage($video, 0, sy, sw, sh, 0, 0, dw, dh);
+  ctx.drawImage($video, sx, sy, sw, sh, 0, 0, dw, dh);
 }
 
 function drawLine($canvas, ctx) {
@@ -155,15 +172,30 @@ function drawLine($canvas, ctx) {
     dh = $canvas.height
   ctx.strokeStyle = 'rgba(255, 0, 0, 0.9)'
   ctx.beginPath();
-  ctx.moveTo(dw*0.33, dh*0.5);
-  ctx.lineTo(dw*0.67, dh*0.5);
+  ctx.moveTo(dw*PADDING_H, dh*0.5);
+  ctx.lineTo(dw*(1 - PADDING_H), dh*0.5);
   ctx.stroke();
 }
 
-function initCanvasSize($canvas, width, maxWidth, aspectRatio) {
+function drawMask($canvas, ctx, x, y, w, h) {
+  const ow = $canvas.width, //outer width
+    oh = $canvas.height, // outer height
+    vd = (oh - h) / 2, //vertical delta
+    hd = (ow - w) /2; // horizontal delta
+    ;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.fillRect(0, 0, ow, vd);
+  ctx.fillRect(0, oh - vd, ow, vd);
+  ctx.fillRect(0, vd, hd, h);
+  ctx.fillRect(ow - hd, vd, hd, h);
+}
+
+function initCanvasSize(width, maxWidth, aspectRatio) {
   var newWidth = Math.min(width, maxWidth);
-  $canvas.width = newWidth;
-  $canvas.height = Math.ceil(newWidth * aspectRatio);
+  $viewCanvas.width = newWidth;
+  $viewCanvas.height = Math.ceil(newWidth * aspectRatio);
+  $workCanvas.width = $viewCanvas.width * (1 - 2 * PADDING_H);
+  $workCanvas.height = $viewCanvas.height * (1 - 2 * PADDING_V);  
 }
 
 function handleDecodeResult(payload) {
