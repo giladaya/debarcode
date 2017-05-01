@@ -15,7 +15,8 @@
     }
 }(this, function(){
   // Web Worker
-  var SlaRleWorker = new Worker('js/SlaRleWorker.js');
+  let url = new URL("../../src/SlaRleWorker.js", window.location);
+  var SlaRleWorker = new Worker(url.toString());
   var msgId = 0;
   var decodeCbs = {};
   var onInit = function(err) {}
