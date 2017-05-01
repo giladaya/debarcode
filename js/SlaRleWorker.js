@@ -31,7 +31,6 @@ THE SOFTWARE.
 ------------------------ */
 
 self.importScripts('Img.js', 'SLA.js', 'RLE.js');
-console.log('Scripts Loaded');
 
 const debug = false;
 
@@ -184,9 +183,9 @@ self.onmessage = function (e) {
 		PBCAImgData = null;
 		result = null;
 
-		postMessage({ type: 'decoding', payload: {EAN: EANs} });
+		postMessage({ type: 'decoding', id: e.data.id, payload: {EAN: EANs} });
 	} else {
-		postMessage({ type: 'decoding', payload: {EAN: []} });
+		postMessage({ type: 'decoding', id: e.data.id, payload: {EAN: []} });
 	}
 };
 

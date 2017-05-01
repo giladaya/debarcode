@@ -17,9 +17,6 @@ const ASPECT_RATIO = 0.5 // aspect ratio of view canvas
 const PADDING_V = 0.15    // vertical padding pct between view and work frame
 const PADDING_H = 0.25   // horizontal padding pct between view and work frame
 
-// Web Worker
-var SlaRleWorker = new Worker('./js/SlaRleWorker.js');
-
 // refs
 var $video = document.getElementById('camera');
 var $viewCanvas = document.getElementById('viewCanvas');
@@ -35,7 +32,9 @@ var wwReady = false;
 
 // Inits
 attachEvents();
+Debarcoder.init(handleStatusUpdate);
 initCamera($video, startApp);
+initResults();
 
 //---------------
 // Functions
@@ -54,8 +53,6 @@ function attachEvents() {
     initResults();
     doScan();
   }
-
-  SlaRleWorker.onmessage = handleWwMessage;
 }
 
 // var constraints = { 
@@ -103,7 +100,6 @@ function initCamera($video, cb) {
 }
 
 function startApp() {
-  initResults();
   initCanvasSize($resolution.value, Math.max($video.videoWidth, 600), ASPECT_RATIO);
   drawFrame();
   doScan();
@@ -122,14 +118,7 @@ function doScan() {
   var ctx = $workCanvas.getContext("2d");
   var imgData = ctx.getImageData(0, 0, $workCanvas.width, $workCanvas.height);
 
-  // prepare message
-  var message = {
-    imgData: imgData,
-  };
-  
-  console.log('send')
-  SlaRleWorker.postMessage(message);
-  message = null;
+  Debarcoder.decode(imgData, handleDecodeResult)
 }
 
 function drawFrame() {
@@ -139,7 +128,7 @@ function drawFrame() {
 
     var wCtx = $workCanvas.getContext("2d");
 
-    // copy from view to work canvas
+    // copy from view to work canvas - before crawing overlays
     var dw = $workCanvas.width,
       dh = $workCanvas.height,
       sw = dw,
@@ -198,13 +187,13 @@ function initCanvasSize(width, maxWidth, aspectRatio) {
   $workCanvas.height = $viewCanvas.height * (1 - 2 * PADDING_V);  
 }
 
-function handleDecodeResult(payload) {
+function handleDecodeResult(result) {
   if (found) {
     return;
   }
-  if (payload.EAN && payload.EAN.length > 0) {
+  if (result.codes && result.codes.length > 0) {
     found = true;
-    showResults(payload.EAN.toString(), TimeKeeper.end())
+    showResults(result.codes[0].value.toString(), TimeKeeper.end())
 
     //cancel next scan
     if (raf !== null) {
@@ -217,25 +206,12 @@ function handleDecodeResult(payload) {
   }
 }
 
-function handleStatusUpdate(payload) {
-  if (payload.status === 'ready') {
+function handleStatusUpdate(err) {
+  if(err !== null) {
+    console.log('WebWorker init error', err)
+  } else {
+    console.log('WebWorker ready')
     wwReady = true;
-  }
-}
-
-// receive worker messages
-function handleWwMessage(e) {
-  console.log('received', e.data.type)
-
-  switch (e.data.type) {
-    case 'decoding': 
-      handleDecodeResult(e.data.payload);
-      break;
-    case 'status':
-      handleStatusUpdate(e.data.payload);
-      break;
-    default:
-      break;
   }
 }
 
