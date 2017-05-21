@@ -32,7 +32,7 @@ var wwReady = false;
 
 // Inits
 attachEvents();
-Debarcoder.init(handleStatusUpdate);
+Debarcode.init(handleStatusUpdate);
 initCamera($video, startApp);
 initResults();
 
@@ -118,7 +118,7 @@ function doScan() {
   var ctx = $workCanvas.getContext("2d");
   var imgData = ctx.getImageData(0, 0, $workCanvas.width, $workCanvas.height);
 
-  Debarcoder.decode(imgData, handleDecodeResult)
+  Debarcode.decode(imgData, handleDecodeResult)
 }
 
 function drawFrame() {

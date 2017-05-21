@@ -30,164 +30,173 @@ THE SOFTWARE.
 
 ------------------------ */
 
-self.importScripts('Img.js', 'SLA.js', 'RLE.js');
+/* eslint-disable no-unused-vars */
+/* global self:true */
+/* global onmessage:true */
+
+import * as Img from './Img';
+import * as RLE from './RLE';
+import * as SLA from './SLA';
+
+// self.importScripts('Img.js', 'SLA.js', 'RLE.js');
 
 const debug = false;
 
-const locBorder = 0;//3;	// additional border for located barcode in %
+const locBorder = 0;// 3;	// additional border for located barcode in %
 
 const SLs = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9];
 
 // Sobel gradient operator
 const GRAD_SOBEL_X = [
-	-1, 0, 1,
-	-2, 0, 2,
-	-1, 0, 1
+  -1, 0, 1,
+  -2, 0, 2,
+  -1, 0, 1
 ];
 const GRAD_SOBEL_Y = [
-	-1, -2, -1,
-	0, 0, 0,
-	1, 2, 1
+  -1, -2, -1,
+  0, 0, 0,
+  1, 2, 1
 ];
 
 // SLA algorithm parameters
 // limits and performance optimizations for scanlines
-const SLA_STEPS = 1/3;	// steps to jump over image rows, shows the amount of rows that will be parsed in %
+const SLA_STEPS = 1 / 3;	// steps to jump over image rows, shows the amount of rows that will be parsed in %
 // const SLA_LIMIT_X = 20;
 // const SLA_LIMIT_Y = 20;
 
 // parameters
 const SLA_PARAMS = {
-	angleDiff: 11,	// difference of angles for gradients and SLs
-	maxDist: 1.7, // 3, // min gradient distance in %
-	minLength: 17, // min SL length in % of image width
-	minGradient: 100, // 44 is the limit theoretically, min amount of gradients in SL
-	maxSLDist: 1.5, // max scanline distance in %
-	maxLengthDiff: 2, // max SL length difference in %
-	maxSLDiffX: 2, // max difference of start point X of SL in %
-	minSLNumber: parseInt(25 * SLA_STEPS), // min number of SLs for PBCA	
+  locBorder,
+  angleDiff: 11,	// difference of angles for gradients and SLs
+  maxDist: 1.7, // 3, // min gradient distance in %
+  minLength: 17, // min SL length in % of image width
+  minGradient: 100, // 44 is the limit theoretically, min amount of gradients in SL
+  maxSLDist: 1.5, // max scanline distance in %
+  maxLengthDiff: 2, // max SL length difference in %
+  maxSLDiffX: 2, // max difference of start point X of SL in %
+  minSLNumber: parseInt(25 * SLA_STEPS, 10), // min number of SLs for PBCA
 }
 
 // receive trigger from program
 // initiate the localization algorithm
 self.onmessage = function (e) {
-	if (e.data.imgData) {
+  if (e.data.imgData) {
 
-		//---------------
-		// LOCALIZATION 
-		//---------------
+		// ---------------
+		// LOCALIZATION
+		// ---------------
 		// convert to grayscale image
-		let grayscaleRes = Img.convertToGrayscale(e.data.imgData);
+    let grayscaleRes = Img.convertToGrayscale(e.data.imgData);
 
 		// use gradient operator
-		let gradientRes = Img.gradientAndBinarize(grayscaleRes.imgData, GRAD_SOBEL_X);
+    let gradientRes = Img.gradientAndBinarize(grayscaleRes.imgData, GRAD_SOBEL_X);
 
 		// start localization
-		var PBCAs = [];
-		PBCAs = SLA.localizationSLA(gradientRes.imgData, gradientRes.gradient, SLA_STEPS, SLA_PARAMS);
-		gradientRes.imgData = null;
-		gradientRes.gradient = null;
-		gradientRes = null;
+    var PBCAs = [];
+    PBCAs = SLA.localizationSLA(gradientRes.imgData, gradientRes.gradient, SLA_STEPS, SLA_PARAMS);
+    gradientRes.imgData = null;
+    gradientRes.gradient = null;
+    gradientRes = null;
 
 		// return biggest PBCA for localization comparison (Jaccard)
-		var areaSize = 0;
-		var result = [];
-		for (ba in PBCAs) {
-			var pbca = PBCAs[ba];
+    var areaSize = 0;
+    var result = [];
+    for (let ba in PBCAs) {
+      var pbca = PBCAs[ba];
 
-			var area = Math.max(0, pbca.endX - pbca.startX) * Math.max(0, pbca.endY - pbca.startY);
+      var area = Math.max(0, pbca.endX - pbca.startX) * Math.max(0, pbca.endY - pbca.startY);
 
-			if (area > areaSize) {
-				areaSize = area;
-				result = [];
-				result.push(pbca);
-			}
-		}
+      if (area > areaSize) {
+        areaSize = area;
+        result = [];
+        result.push(pbca);
+      }
+    }
 		// postMessage({ type:'localization', areas: result });
 
-		//-----------
-		// DECODING 
-		//-----------
+		// -----------
+		// DECODING
+		// -----------
 
-		EANs = [];
-		for (p in PBCAs) {
-			EAN = "false";
-			var PBCA = PBCAs[p];
+    const EANs = [];
+    let PBCAImgData;
+    for (let p in PBCAs) {
+      let EAN = 'false';
+      var PBCA = PBCAs[p];
 
 			// slicing imageArrayGray.array to PBCA size
-			let PBCAImgData = Img.getRect(
-				grayscaleRes.imgData, 
-				PBCA.startX, 
+      PBCAImgData = Img.getRect(
+				grayscaleRes.imgData,
+				PBCA.startX,
 				PBCA.startY,
 				(PBCA.endX - PBCA.startX),
 				(PBCA.endY - PBCA.startY)
 			)
 
 			// decoding for each scanline
-			for (s in SLs) {
-				const idx = Math.floor(PBCAImgData.height * SLs[s]);
-				const rowImgData = Img.getRow(PBCAImgData, idx)
-				const sum = rowImgData.data.reduce(function(acc, val, idx){ return (idx % 4 === 0) ? acc+val : acc}, 0);
+      for (let s in SLs) {
+        const idx = Math.floor(PBCAImgData.height * SLs[s]);
+        const rowImgData = Img.getRow(PBCAImgData, idx)
+        const sum = rowImgData.data.reduce(function (acc, val, idx) { return (idx % 4 === 0) ? acc + val : acc}, 0);
 
-				// select grayscale scanline				
-				const sl = Img.binarize(rowImgData, (sum / rowImgData.width));
+				// select grayscale scanline
+        const sl = Img.binarize(rowImgData, (sum / rowImgData.width));
 
-				const row = new Uint8ClampedArray(rowImgData.width)
-				sl.data.reduce(
-					function(acc, val, idx){ 
-						if (idx % 4 === 0){
-							acc[idx / 4] = val;
-						}
-						return acc;
-					}, 
-					row
-				)
-				// RLEncoding the scanline
-				rle = RLE.runLengthEncoding(row);
-				rows = RLE.sliceDigits(rle);
+        const row = new Uint8ClampedArray(rowImgData.width)
+        sl.data.reduce(
+          function (acc, val, idx) {
+            if (idx % 4 === 0) {
+              acc[idx / 4] = val;
+            }
+            return acc;
+          },
+          row
+        )
+        // RLEncoding the scanline
+        const rle = RLE.runLengthEncoding(row);
+        const rows = RLE.sliceDigits(rle);
 
-				for (r in rows) {
-					digits = rows[r];
+        for (let r in rows) {
+          const digits = rows[r];
 
-					if (digits.length == 12) {
-						normalization = RLE.normalizeDigits(digits);
-						EAN = RLE.findSimilarNumbers(normalization);
-						if (EAN != "false") {
-							EANs.push(EAN);
-							break;
-						}
-					} else {
-						EAN = "false";
-					}
-				}
+          if (digits.length === 12) {
+            const normalization = RLE.normalizeDigits(digits);
+            EAN = RLE.findSimilarNumbers(normalization);
+            if (EAN !== 'false') {
+              EANs.push(EAN);
+              break;
+            }
+          } else {
+            EAN = 'false';
+          }
+        }
 
-				if (EAN != "false") {
-					break;
-				}
+        if (EAN !== 'false') {
+          break;
+        }
 
-			}	// end parsing all Scanlines SLs
+      }	// end parsing all Scanlines SLs
 
-			//if (EAN != "false") {
+			// if (EAN != "false") {
 			//	break;
-			//}
+			// }
 
-		}	// end parsing all PBCAs
-
+    }	// end parsing all PBCAs
 
 		// ---------
-		// RESULTS 
+		// RESULTS
 		// ---------
 
-		grayscaleRes.imgData = null;
-		PBCAs = null;
-		PBCAImgData = null;
-		result = null;
+    grayscaleRes.imgData = null;
+    PBCAs = null;
+    PBCAImgData = null;
+    result = null;
 
-		postMessage({ type: 'decoding', id: e.data.id, payload: {EAN: EANs} });
-	} else {
-		postMessage({ type: 'decoding', id: e.data.id, payload: {EAN: []} });
-	}
+    postMessage({ type: 'decoding', id: e.data.id, payload: {EAN: EANs} });
+  } else {
+    postMessage({ type: 'decoding', id: e.data.id, payload: {EAN: []} });
+  }
 };
 
-//signal that the worker is ready
+// signal that the worker is ready
 postMessage({ type: 'status', payload: {status: 'ready'} });

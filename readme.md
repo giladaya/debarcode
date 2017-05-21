@@ -22,3 +22,4 @@ As of now (mid 2017) there is no standard way to control autofocus from the brow
 - [WebCodeCamJS](https://github.com/andrastoth/webcodecamjs)
 - [quaggaJS](https://serratus.github.io/quaggaJS)
 - [A Gist](https://gist.github.com/tobytailor/421369)
+- [Balkenkode](https://bitbucket.org/jrosskopf/balkenkode)
