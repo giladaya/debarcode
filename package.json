@@ -5,7 +5,7 @@
   "main": "dist/Debarcode.js",
   "scripts": {
     "build": "webpack --env build",
-    "dev": "webpack --progress --colors --watch --env dev",
+    "dev": "webpack --progress --colors --watch --env dev"
   },
   "devDependencies": {
     "babel-cli": "6.24.1",
@@ -26,7 +26,7 @@
   },
   "keywords": [
     "barcode",
-    "library",
+    "library"
   ],
   "author": "Gilad Dayagi",
   "license": "MIT",
