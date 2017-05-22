@@ -4,9 +4,9 @@
   "description": "robust pure javascript EAN-13 barcode decoder",
   "main": "dist/Debarcode.js",
   "scripts": {
-    "build": "webpack --env build && cp dist/Debarcode.min.js examples/dist/",
+    "build": "webpack --env build && cp dist/Debarcode.min.js examples/",
     "dev": "webpack --progress --colors --watch --env dev",
-    "gh-pages": "npm run build && gh-pages -d examples"
+    "gh-pages": "npm run build && node_modules/gh-pages/bin/gh-pages -d examples"
   },
   "devDependencies": {
     "babel-cli": "6.24.1",
